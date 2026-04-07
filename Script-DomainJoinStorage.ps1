@@ -9,7 +9,9 @@ param(
     [string]$isFslogixDeployment,
     [string]$fslogixShareName,
     [string]$fslogixADGroupName,
-    [string]$ADAdmingroup
+    [string]$ADAdmingroup,
+    [string]$domainJoinUsername,
+    [SecureString]$domainJoinPassword
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,16 +35,26 @@ try {
     Select-AzSubscription -SubscriptionId $subscriptionId
 
     Write-Output "Domain joining storage account $storageAccountName in resource group $resourceGroupName..."
-    $joinParams = @{
-        ResourceGroupName = $resourceGroupName
-        StorageAccountName = $storageAccountName
-        DomainAccountType = "ComputerAccount"
-        OverwriteExistingADObject = $true
-    }
-    if ($storageAccountOuPath) {
-        $joinParams["OrganizationalUnitDistinguishedName"] = $storageAccountOuPath
-    }
-    Join-AzStorageAccount @joinParams
+    # Invoke-Command runs the AD join as the domain user (who has permission to create AD computer objects).
+    # The outer script runs as SYSTEM which lacks AD write permissions.
+    $credential = New-Object System.Management.Automation.PSCredential($domainJoinUsername, $domainJoinPassword)
+
+    Invoke-Command -ComputerName localhost -Credential $credential -ScriptBlock {
+        param($rgName, $saName, $ouPath, $clientId, $subId)
+        Import-Module AzFilesHybrid -Force
+        Connect-AzAccount -Identity -AccountId $clientId | Out-Null
+        Select-AzSubscription -SubscriptionId $subId | Out-Null
+        $joinParams = @{
+            ResourceGroupName  = $rgName
+            StorageAccountName = $saName
+            DomainAccountType  = 'ComputerAccount'
+            OverwriteExistingADObject = $true
+        }
+        if ($ouPath) {
+            $joinParams['OrganizationalUnitDistinguishedName'] = $ouPath
+        }
+        Join-AzStorageAccount @joinParams
+    } -ArgumentList $resourceGroupName, $storageAccountName, $storageAccountOuPath, $clientId, $subscriptionId
 
     Write-Output "Successfully domain joined storage account $storageAccountName"
 } catch {
