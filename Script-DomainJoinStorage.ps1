@@ -11,7 +11,7 @@ param(
     [string]$fslogixADGroupName,
     [string]$ADAdmingroup,
     [string]$domainJoinUsername,
-    [SecureString]$domainJoinPassword
+    [string]$domainJoinPassword
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,7 +37,8 @@ try {
     Write-Output "Domain joining storage account $storageAccountName in resource group $resourceGroupName..."
     # Invoke-Command runs the AD join as the domain user (who has permission to create AD computer objects).
     # The outer script runs as SYSTEM which lacks AD write permissions.
-    $credential = New-Object System.Management.Automation.PSCredential($domainJoinUsername, $domainJoinPassword)
+    $securePassword = ConvertTo-SecureString $domainJoinPassword -AsPlainText -Force
+    $credential = New-Object System.Management.Automation.PSCredential($domainJoinUsername, $securePassword)
 
     Invoke-Command -ComputerName localhost -Credential $credential -ScriptBlock {
         param($rgName, $saName, $ouPath, $clientId, $subId)
