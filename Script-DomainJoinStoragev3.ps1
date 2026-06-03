@@ -9,6 +9,7 @@ param(
     [string]$storageAccountOuPath = "",
     [string]$isFslogixDeployment,
     [string]$fslogixShareName,
+    [string]$fslogixADGroupName,
     [string]$ADAdmingroup = "",
     # Scheduled task registration
     [switch]$RegisterScheduledTask,
@@ -46,6 +47,7 @@ function Register-StorageScheduledTask {
         [string]$StorageAccountOuPath = "",
         [string]$IsFslogixDeployment = "",
         [string]$FslogixShareName = "",
+        [string]$FslogixADGroupName = "",
         [string]$ADAdmingroup = ""
     )
 
@@ -69,6 +71,7 @@ function Register-StorageScheduledTask {
         " -resourceGroupName `"$ResourceGroupName`"" +
         " -isFslogixDeployment `"$IsFslogixDeployment`"" +
         " -fslogixShareName `"$FslogixShareName`"" +
+        " -fslogixADGroupName `"$FslogixADGroupName`"" +
         " -ADAdmingroup `"$ADAdmingroup`"" +
         $(if ($StorageAccountOuPath) { " -storageAccountOuPath `"$StorageAccountOuPath`"" } else { "" })
 
@@ -117,6 +120,7 @@ if ($RegisterScheduledTask) {
         -StorageAccountOuPath $storageAccountOuPath `
         -IsFslogixDeployment $isFslogixDeployment `
         -FslogixShareName $fslogixShareName `
+        -FslogixADGroupName $fslogixADGroupName `
         -ADAdmingroup $ADAdmingroup
     Stop-Transcript
     exit $(if ($result) { 0 } else { 1 })
@@ -228,8 +232,18 @@ if ($isFslogixDeployment -eq "true") {
             $folderPath = "Y:\$folder"
             Write-LogOutput "Creating hostpool folder: $folderPath..."
             New-Item -ItemType Directory -Path $folderPath -Force | Out-Null
-            icacls $folderPath /grant "Authenticated Users:(M)"
             Write-LogOutput "Created $folderPath"
+        }
+
+        if ($fslogixADGroupName -ne "none" -and $fslogixADGroupName -ne "") {
+            $Group = "$domainNetBiosName\$fslogixADGroupName"
+        } else { $Group = "Authenticated Users"}
+
+        foreach ($folder in $hostPoolFolders) {
+                $folderPath = "Y:\$folder"
+                Write-LogOutput "Setting Modify permissions for $Group on $folder..."
+                icacls $folderPath /grant "${Group}:(M)"
+                Write-LogOutput "Permissions set on $folder"
         }
 
         Write-LogOutput "FSLogix NTFS permissions configured successfully"
