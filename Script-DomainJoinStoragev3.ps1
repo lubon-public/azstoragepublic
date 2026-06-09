@@ -235,7 +235,7 @@ if ($isFslogixDeployment -eq "true") {
             Write-LogOutput "Created $folderPath"
         }
 
-        if ($fslogixADGroupName -ne "none" -and $fslogixADGroupName -ne "") {
+        if ($fslogixADGroupName -ne "none" -and $fslogixADGroupName -ne "" -and $fslogixADGroupName -ne "Authenticated Users") {
             $Group = "$domainNetBiosName\$fslogixADGroupName"
         } else { $Group = "Authenticated Users"}
 
